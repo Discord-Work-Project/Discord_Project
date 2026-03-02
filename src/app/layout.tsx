@@ -16,6 +16,8 @@ export const metadata: Metadata = {
   description: "Your friendly neighborhood real-time community hub",
 };
 
+import { VoiceProvider } from "@/context/VoiceContext";
+
 export default function RootLayout({
   children,
 }: {
@@ -27,8 +29,10 @@ export default function RootLayout({
         className={`${inter.className} ${bangers.variable} web-pattern min-h-screen`}
       >
         <AuthProvider>
-          <Navbar />
-          <main className="">{children}</main>
+          <VoiceProvider>
+            <Navbar />
+            <main className="">{children}</main>
+          </VoiceProvider>
         </AuthProvider>
       </body>
     </html>

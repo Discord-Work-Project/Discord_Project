@@ -1,93 +1,255 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { PlusCircle, Gift, Sticker, Smile, Send } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { PlusCircle, Gift, Sticker, Smile, Send, Hash, X, Search, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/AuthContext";
+import { io, Socket } from "socket.io-client";
+import { AnimatePresence, motion } from "framer-motion";
 
-interface Message {
-    id: string;
-    user: string;
-    avatar: string;
-    content: string;
-    timestamp: string;
-    color: string;
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface Author {
+    _id: string;
+    username: string;
+    displayName?: string;
+    avatar?: string;
+    email: string;
 }
 
-const DUMMY_MESSAGES: Message[] = [
-    {
-        id: "1",
-        user: "IronMan",
-        avatar: "I",
-        content: "Anyone seen my new nanosuit? I left it in the lab.",
-        timestamp: "Today at 2:15 PM",
-        color: "bg-red-600"
-    },
-    {
-        id: "2",
-        user: "CaptainAmerica",
-        avatar: "C",
-        content: "Tony, I think Peter was checking it out earlier.",
-        timestamp: "Today at 2:17 PM",
-        color: "bg-blue-600"
-    },
-    {
-        id: "3",
-        user: "SpiderMan",
-        avatar: "S",
-        content: "It was just so cool! I promise I'll put it back in one piece! 🕸️",
-        timestamp: "Today at 2:18 PM",
-        color: "bg-red-500"
-    },
-    {
-        id: "4",
-        user: "BlackWidow",
-        avatar: "B",
-        content: "Focus team, we have a mission briefing in 5 minutes.",
-        timestamp: "Today at 2:20 PM",
-        color: "bg-zinc-800"
-    }
+interface Message {
+    _id: string;
+    content: string;
+    author: Author;
+    serverId: string;
+    channelId: string;
+    createdAt: string;
+}
+
+// ─── Emoji Data ───────────────────────────────────────────────────────────────
+const EMOJI_CATEGORIES: Record<string, string[]> = {
+    "😊 Smileys": ["😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙", "🥲", "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐", "😑", "😶", "😏", "😒", "🙄", "😬", "🤥", "😌", "😔", "😪", "🤤", "😴", "😷", "🤒", "🤕"],
+    "👋 Gestures": ["👍", "👎", "👌", "🤌", "✌️", "🤞", "🤟", "🤘", "🤙", "👈", "👉", "👆", "👇", "☝️", "✋", "🤚", "🖐️", "🖖", "👋", "🤏", "💪", "🦾", "🙏", "🤲", "👐", "🫶", "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❣️", "💕", "💞", "💓", "💗", "💖", "💘", "💝", "💟"],
+    "🐶 Animals": ["🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🐻", "🐼", "🐨", "🐯", "🦁", "🐮", "🐷", "🐸", "🐵", "🐔", "🐧", "🐦", "🐤", "🦆", "🦅", "🦉", "🦇", "🐺", "🐗", "🐴", "🦄", "🐝", "🐛", "🦋", "🐌", "🐞", "🐜", "🦟", "🦗", "🐢", "🐍", "🦎", "🦖", "🦕", "🐙", "🦑", "🦐", "🦞", "🦀", "🐡", "🐠", "🐟"],
+    "🍕 Food": ["🍎", "🍊", "🍋", "🍇", "🍓", "🍒", "🍑", "🥭", "🍍", "🥥", "🥝", "🍅", "🥑", "🍆", "🥦", "🥕", "🌽", "🌶️", "🥒", "🥗", "🍔", "🍟", "🌮", "🌯", "🥙", "🍕", "🍝", "🍜", "🍛", "🍱", "🍣", "🍦", "🍧", "🍨", "🍩", "🍪", "🎂", "🍰", "☕", "🍵", "🧃", "🥤", "🍺", "🍻", "🥂", "🍷", "🍸", "🧋"],
+    "✈️ Travel": ["🚗", "🚕", "🚙", "🚌", "🚎", "🏎️", "🚓", "🚑", "🚒", "🚐", "🛻", "🚚", "🚛", "🚜", "🛵", "🏍️", "🚲", "🛴", "🚁", "✈️", "🚀", "🛸", "🚢", "⛵", "🛥️", "🚤", "🏖️", "🏕️", "🏔️", "🌋", "🗺️", "🗼", "🏰", "🎡", "🎢", "🎠", "🗽", "🌁", "🌃", "🌆", "🌇", "🌉", "🌌", "🎑", "🏞️", "🌅", "🌄", "🌠"],
+    "⚽ Objects": ["⚽", "🏀", "🏈", "⚾", "🎾", "🏐", "🏉", "🎱", "🏓", "🏸", "🥊", "🥋", "⛳", "🎿", "🛷", "🎯", "🎲", "🎮", "🕹️", "🧩", "🎸", "🎹", "🎺", "🎻", "🥁", "📱", "💻", "🖥️", "⌨️", "🖨️", "🖱️", "📷", "📸", "📹", "📺", "📻", "🎙️", "🎚️", "🎛️", "📡", "💡", "🔦", "🕯️", "🔋", "💰", "💎", "🔑", "🗝️"],
+    "💯 Symbols": ["❤️‍🔥", "💯", "✅", "❌", "⭐", "🌟", "💫", "✨", "🔥", "💥", "💢", "💬", "💭", "💤", "🔔", "🔕", "🎵", "🎶", "🎊", "🎉", "🎈", "🎀", "🎁", "🏆", "🥇", "🏅", "🎖️", "🎗️", "📌", "📍", "🗑️", "📌", "❓", "❗", "‼️", "⁉️", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "🟤", "⚫", "⚪", "🔶", "🔷"],
+};
+
+// ─── Sticker Data ─────────────────────────────────────────────────────────────
+const STICKERS = [
+    { id: 1, label: "Party", emoji: "🎉🥳" },
+    { id: 2, label: "Love", emoji: "❤️😍" },
+    { id: 3, label: "LOL", emoji: "😂🤣" },
+    { id: 4, label: "Wow", emoji: "😮🤯" },
+    { id: 5, label: "GG", emoji: "💪🏆" },
+    { id: 6, label: "Fire", emoji: "🔥✨" },
+    { id: 7, label: "Sad", emoji: "😢💔" },
+    { id: 8, label: "Hype", emoji: "🚀💫" },
+    { id: 9, label: "Pog", emoji: "😤👊" },
+    { id: 10, label: "Sleep", emoji: "😴💤" },
+    { id: 11, label: "Think", emoji: "🤔💭" },
+    { id: 12, label: "Cool", emoji: "😎🕶️" },
 ];
 
-export default function ChatArea({ channelName }: { channelName: string }) {
-    const [messages, setMessages] = useState<Message[]>(DUMMY_MESSAGES);
+// ─── Giphy Config ─────────────────────────────────────────────────────────────
+const GIPHY_KEY = "dc6zaTOxFJmzC"; // public beta key
+const GIPHY_TRENDING = `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_KEY}&limit=24&rating=g`;
+const GIPHY_SEARCH = (q: string) => `https://api.giphy.com/v1/gifs/search?api_key=${GIPHY_KEY}&q=${encodeURIComponent(q)}&limit=24&rating=g`;
+
+interface GifResult { id: string; images: { fixed_height_small: { url: string }; original: { url: string } } }
+
+// ─── Panel animation ─────────────────────────────────────────────────────────
+const panelVariants = {
+    hidden: { opacity: 0, scale: 0.92, y: 8 },
+    visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.15 } },
+    exit: { opacity: 0, scale: 0.92, y: 8, transition: { duration: 0.1 } },
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+export default function ChatArea({
+    serverId, channelId, channelName,
+}: { serverId: string; channelId: string; channelName: string }) {
+    const { user } = useAuth();
+    const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
+    const [loading, setLoading] = useState(true);
+    const socketRef = useRef<Socket | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Auto-scroll to bottom when new messages arrive
+    // ── Panel state: "emoji" | "gif" | "sticker" | null
+    const [openPanel, setOpenPanel] = useState<"emoji" | "gif" | "sticker" | null>(null);
+    const [emojiCategory, setEmojiCategory] = useState(Object.keys(EMOJI_CATEGORIES)[0]);
+    const [gifs, setGifs] = useState<GifResult[]>([]);
+    const [gifSearch, setGifSearch] = useState("");
+    const [gifLoading, setGifLoading] = useState(false);
+    const panelRef = useRef<HTMLDivElement>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+    const togglePanel = (panel: "emoji" | "gif" | "sticker") => {
+        setOpenPanel(prev => prev === panel ? null : panel);
+    };
+
+    // Close panel on outside click
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
-    }, [messages]);
+        const handler = (e: MouseEvent) => {
+            if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+                setOpenPanel(null);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
 
-    const handleSendMessage = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!inputValue.trim()) return;
+    // Load trending GIFs when GIF panel first opens
+    useEffect(() => {
+        if (openPanel !== "gif") return;
+        if (gifs.length > 0 && !gifSearch) return;
+        fetchGifs(gifSearch);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [openPanel]);
 
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            user: "UserAccount",
-            avatar: "U",
-            content: inputValue,
-            timestamp: "Just now",
-            color: "bg-red-600"
+    const fetchGifs = async (query: string) => {
+        setGifLoading(true);
+        try {
+            const url = query ? GIPHY_SEARCH(query) : GIPHY_TRENDING;
+            const res = await fetch(url);
+            const data = await res.json();
+            setGifs(data.data ?? []);
+        } catch { /* silent */ }
+        finally { setGifLoading(false); }
+    };
+
+    // Debounced GIF search
+    const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleGifSearch = (q: string) => {
+        setGifSearch(q);
+        if (searchTimeout.current) clearTimeout(searchTimeout.current);
+        searchTimeout.current = setTimeout(() => fetchGifs(q), 500);
+    };
+
+    // ── Socket + history ──────────────────────────────────────────────────────
+    useEffect(() => {
+        if (!user?.token || !channelId) return;
+
+        const fetchHistory = async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(`http://127.0.0.1:5000/api/messages/${channelId}`, {
+                    headers: { Authorization: `Bearer ${user.token}` },
+                });
+                if (res.ok) setMessages(await res.json());
+            } catch (err) { console.error("Failed to fetch messages:", err); }
+            finally { setLoading(false); }
         };
 
-        setMessages([...messages, newMessage]);
+        fetchHistory();
+        socketRef.current = io("http://127.0.0.1:5000");
+        socketRef.current.emit("join-channel", channelId);
+        socketRef.current.on("new-message", (msg: Message) => setMessages(prev => [...prev, msg]));
+        socketRef.current.on("message-deleted", (deletedId: string) =>
+            setMessages(prev => prev.filter(m => m._id !== deletedId))
+        );
+
+        return () => { socketRef.current?.disconnect(); };
+    }, [channelId, user?.token]);
+
+    // Auto-scroll
+    useEffect(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }, [messages]);
+
+    // ── Send helpers ──────────────────────────────────────────────────────────
+    const sendContent = useCallback(async (content: string) => {
+        if (!content.trim() || !user?.token) return;
+        try {
+            const res = await fetch("http://127.0.0.1:5000/api/messages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+                body: JSON.stringify({ content, serverId, channelId }),
+            });
+            if (res.ok) {
+                const newMessage = await res.json();
+                socketRef.current?.emit("send-message", newMessage);
+            }
+        } catch (err) { console.error("Failed to send message:", err); }
+    }, [user, serverId, channelId]);
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        await sendContent(inputValue);
         setInputValue("");
     };
 
+    const handleEmojiClick = (emoji: string) => {
+        setInputValue(prev => prev + emoji);
+        setOpenPanel(null);
+    };
+
+    const handleStickerClick = (sticker: typeof STICKERS[0]) => {
+        setInputValue(prev => prev + sticker.emoji);
+        setOpenPanel(null);
+    };
+
+    const handleGifClick = async (gif: GifResult) => {
+        setOpenPanel(null);
+        await sendContent(gif.images.original.url);
+    };
+
+    const handleDeleteMessage = async (messageId: string, channelId: string) => {
+        setDeleteConfirmId(null);
+        try {
+            const res = await fetch(`http://127.0.0.1:5000/api/messages/${messageId}`, {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${user!.token}` },
+            });
+            if (res.ok) {
+                // Optimistically remove from local state
+                setMessages(prev => prev.filter(m => m._id !== messageId));
+                // Broadcast deletion to other clients
+                socketRef.current?.emit("delete-message", { messageId, channelId });
+            }
+        } catch (err) { console.error("Failed to delete message:", err); }
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+            await sendContent(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+        e.target.value = "";
+    };
+
+    // ── Render helpers ────────────────────────────────────────────────────────
+    const getAuthorName = (author: Author) => author.displayName || author.username || "Unknown";
+
+    const getInitials = (name?: string) => {
+        if (!name) return "?";
+        return name.split(" ").map(n => n[0]).join("").toUpperCase();
+    };
+
+    const formatTimestamp = (isoString: string) => {
+        const date = new Date(isoString);
+        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    };
+
+    // Detect if content is a GIF URL or base64 image
+    const isImageContent = (content: string) =>
+        content.startsWith("data:image") ||
+        content.match(/\.(gif|png|jpg|jpeg|webp)(\?.*)?$/i);
+
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="flex flex-col h-full bg-[#313338] relative overflow-hidden">
-            {/* Messages List */}
-            <div
-                ref={scrollRef}
-                className="flex-1 overflow-y-auto px-4 py-6 space-y-6 custom-scrollbar"
-            >
-                {/* Welcome Message */}
+            {/* Messages */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6 space-y-1 custom-scrollbar">
                 <div className="mb-8">
-                    <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mb-4">
-                        <span className="text-4xl text-white font-bold">#</span>
+                    <div className="w-16 h-16 bg-[#41434a] rounded-full flex items-center justify-center mb-4 text-[#dbdee1]">
+                        <Hash className="w-10 h-10" />
                     </div>
                     <h1 className="text-3xl font-bold text-white mb-1">Welcome to #{channelName}!</h1>
                     <p className="text-zinc-400">This is the start of the #{channelName} channel.</p>
@@ -95,34 +257,256 @@ export default function ChatArea({ channelName }: { channelName: string }) {
 
                 <div className="border-t border-zinc-700/50 my-6" />
 
-                {messages.map((msg) => (
-                    <div key={msg.id} className="flex gap-4 group hover:bg-black/5 -mx-4 px-4 py-1 transition-colors">
-                        <div className={cn(
-                            "w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0 mt-0.5 shadow-sm",
-                            msg.color
-                        )}>
-                            {msg.avatar}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                                <span className="font-bold text-white hover:underline cursor-pointer">{msg.user}</span>
-                                <span className="text-[12px] text-zinc-400 font-medium">{msg.timestamp}</span>
-                            </div>
-                            <p className="text-[#dbdee1] leading-relaxed break-words">
-                                {msg.content}
-                            </p>
-                        </div>
+                {loading ? (
+                    <div className="flex justify-center py-10">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600" />
                     </div>
-                ))}
+                ) : (
+                    messages.map((msg) => {
+                        const isOwn = user?._id === msg.author?._id;
+                        return (
+                            <div key={msg._id} className="flex gap-4 group hover:bg-[#2e3035] -mx-4 px-4 py-1 rounded transition-colors relative">
+                                {/* Avatar */}
+                                <div className="shrink-0 mt-0.5">
+                                    {msg.author?.avatar ? (
+                                        <img
+                                            src={msg.author.avatar}
+                                            alt={getAuthorName(msg.author)}
+                                            className="w-10 h-10 rounded-full object-cover shadow-sm ring-2 ring-zinc-700"
+                                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                        />
+                                    ) : (
+                                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-red-600 text-white font-bold text-sm shadow-sm ring-2 ring-zinc-700">
+                                            {getInitials(getAuthorName(msg.author))}
+                                        </div>
+                                    )}
+                                </div>
+                                {/* Content */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="font-bold text-white hover:underline cursor-pointer text-sm">
+                                            {getAuthorName(msg.author)}
+                                        </span>
+                                        {msg.author?.username && msg.author.displayName && (
+                                            <span className="text-[11px] text-zinc-500">@{msg.author.username}</span>
+                                        )}
+                                        <span className="text-[11px] text-zinc-400">
+                                            {formatTimestamp(msg.createdAt)}
+                                        </span>
+                                    </div>
+                                    {isImageContent(msg.content) ? (
+                                        <img
+                                            src={msg.content}
+                                            alt="shared content"
+                                            className="mt-1 max-w-[320px] max-h-60 rounded-lg object-cover border border-zinc-600"
+                                        />
+                                    ) : (
+                                        <p className="text-[#dbdee1] text-sm leading-relaxed break-words mt-0.5">
+                                            {msg.content}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Hover Actions — only for own messages */}
+                                {isOwn && (
+                                    <div className="absolute right-4 top-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => setDeleteConfirmId(msg._id)}
+                                            title="Delete message"
+                                            className="p-1.5 rounded bg-[#1e1f22] hover:bg-red-600 text-zinc-400 hover:text-white transition-all shadow"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* Delete Confirm Modal */}
+                                {deleteConfirmId === msg._id && (
+                                    <div
+                                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                                        onClick={() => setDeleteConfirmId(null)}
+                                    >
+                                        <div
+                                            className="bg-[#313338] border border-zinc-700 rounded-xl p-6 w-full max-w-sm shadow-2xl"
+                                            onClick={e => e.stopPropagation()}
+                                        >
+                                            <h3 className="text-white font-bold text-lg mb-1">Delete Message</h3>
+                                            <p className="text-zinc-400 text-sm mb-1">Are you sure you want to delete this message? This cannot be undone.</p>
+                                            <div className="bg-[#2b2d31] rounded-lg p-3 mb-4 text-zinc-300 text-sm break-words">
+                                                {isImageContent(msg.content)
+                                                    ? <span className="italic text-zinc-500">[Image / GIF]</span>
+                                                    : msg.content
+                                                }
+                                            </div>
+                                            <div className="flex gap-3 justify-end">
+                                                <button
+                                                    onClick={() => setDeleteConfirmId(null)}
+                                                    className="px-4 py-1.5 rounded-md text-sm text-zinc-300 hover:text-white hover:bg-zinc-700 transition"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteMessage(msg._id, msg.channelId)}
+                                                    className="px-4 py-1.5 rounded-md text-sm bg-red-600 hover:bg-red-700 text-white font-semibold transition"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })
+                )}
             </div>
 
-            {/* Input Box Area */}
-            <div className="px-4 pb-6 mt-auto">
+            {/* ── Input Box Area ──────────────────────────────────────────── */}
+            <div className="px-4 pb-6 mt-auto" ref={panelRef}>
+
+                {/* ── Panels (positioned above input) ─────────────────────── */}
+                <AnimatePresence>
+                    {openPanel === "emoji" && (
+                        <motion.div
+                            key="emoji"
+                            variants={panelVariants}
+                            initial="hidden" animate="visible" exit="exit"
+                            className="mb-2 bg-[#1e1f22] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden w-full max-w-md"
+                        >
+                            {/* Category tabs */}
+                            <div className="flex gap-1 p-2 border-b border-zinc-700 overflow-x-auto scrollbar-hide">
+                                {Object.keys(EMOJI_CATEGORIES).map(cat => (
+                                    <button
+                                        key={cat}
+                                        onClick={() => setEmojiCategory(cat)}
+                                        className={cn(
+                                            "shrink-0 px-2 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap",
+                                            emojiCategory === cat
+                                                ? "bg-red-600 text-white"
+                                                : "text-zinc-400 hover:bg-zinc-700 hover:text-white"
+                                        )}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+                            {/* Emoji grid */}
+                            <div className="grid grid-cols-10 gap-0 p-2 max-h-52 overflow-y-auto custom-scrollbar">
+                                {EMOJI_CATEGORIES[emojiCategory].map((emoji, i) => (
+                                    <button
+                                        key={i}
+                                        onClick={() => handleEmojiClick(emoji)}
+                                        className="text-xl p-1.5 rounded hover:bg-zinc-700 transition-colors leading-none"
+                                        title={emoji}
+                                    >
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {openPanel === "gif" && (
+                        <motion.div
+                            key="gif"
+                            variants={panelVariants}
+                            initial="hidden" animate="visible" exit="exit"
+                            className="mb-2 bg-[#1e1f22] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden w-full"
+                        >
+                            {/* Search */}
+                            <div className="p-2 border-b border-zinc-700">
+                                <div className="flex items-center gap-2 bg-zinc-800 rounded-lg px-3 py-1.5">
+                                    <Search className="w-4 h-4 text-zinc-400 shrink-0" />
+                                    <input
+                                        type="text"
+                                        value={gifSearch}
+                                        onChange={e => handleGifSearch(e.target.value)}
+                                        placeholder="Search GIFs..."
+                                        className="bg-transparent text-sm text-zinc-200 outline-none flex-1 placeholder:text-zinc-500"
+                                        autoFocus
+                                    />
+                                    {gifSearch && (
+                                        <button onClick={() => { setGifSearch(""); fetchGifs(""); }}>
+                                            <X className="w-3.5 h-3.5 text-zinc-400 hover:text-white" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            {/* GIF grid */}
+                            <div className="grid grid-cols-3 gap-1 p-2 max-h-64 overflow-y-auto custom-scrollbar">
+                                {gifLoading ? (
+                                    <div className="col-span-3 flex justify-center py-6">
+                                        <div className="animate-spin rounded-full h-7 w-7 border-t-2 border-b-2 border-red-600" />
+                                    </div>
+                                ) : gifs.length === 0 ? (
+                                    <div className="col-span-3 text-center text-zinc-500 text-sm py-6">No GIFs found</div>
+                                ) : (
+                                    gifs.map(gif => (
+                                        <button
+                                            key={gif.id}
+                                            onClick={() => handleGifClick(gif)}
+                                            className="rounded-lg overflow-hidden hover:ring-2 hover:ring-red-500 transition-all"
+                                        >
+                                            <img
+                                                src={gif.images.fixed_height_small.url}
+                                                alt="gif"
+                                                className="w-full h-20 object-cover"
+                                                loading="lazy"
+                                            />
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                            <p className="text-[10px] text-zinc-600 text-center pb-1">Powered by GIPHY</p>
+                        </motion.div>
+                    )}
+
+                    {openPanel === "sticker" && (
+                        <motion.div
+                            key="sticker"
+                            variants={panelVariants}
+                            initial="hidden" animate="visible" exit="exit"
+                            className="mb-2 bg-[#1e1f22] border border-zinc-700 rounded-xl shadow-2xl overflow-hidden w-72"
+                        >
+                            <p className="text-xs font-semibold text-zinc-400 px-3 pt-2 pb-1 uppercase tracking-wide">Stickers</p>
+                            <div className="grid grid-cols-4 gap-2 p-3">
+                                {STICKERS.map(sticker => (
+                                    <button
+                                        key={sticker.id}
+                                        onClick={() => handleStickerClick(sticker)}
+                                        className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-zinc-700 transition-colors"
+                                        title={sticker.label}
+                                    >
+                                        <span className="text-3xl leading-none">{sticker.emoji.split("")[0]}</span>
+                                        <span className="text-[10px] text-zinc-400">{sticker.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Hidden file input */}
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*,video/*,.gif"
+                    className="hidden"
+                    onChange={handleFileChange}
+                />
+
+                {/* Input form */}
                 <form
                     onSubmit={handleSendMessage}
                     className="bg-[#383a40] rounded-lg flex items-center px-4 py-2.5 gap-4 shadow-sm"
                 >
-                    <button type="button" className="text-zinc-400 hover:text-zinc-200 transition">
+                    {/* Plus / Attach */}
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Attach file"
+                        className="text-zinc-400 hover:text-zinc-200 transition"
+                    >
                         <PlusCircle className="w-6 h-6" />
                     </button>
 
@@ -135,15 +519,45 @@ export default function ChatArea({ channelName }: { channelName: string }) {
                     />
 
                     <div className="flex items-center gap-3 text-zinc-400">
-                        <button type="button" className="hidden sm:block hover:text-zinc-200 transition">
-                            <Gift className="w-6 h-6" />
+                        {/* GIF */}
+                        <button
+                            type="button"
+                            onClick={() => togglePanel("gif")}
+                            title="Send a GIF"
+                            className={cn("transition hidden sm:flex items-center gap-1 font-bold text-xs border rounded px-1.5 py-0.5",
+                                openPanel === "gif"
+                                    ? "border-red-500 text-red-400"
+                                    : "border-zinc-600 hover:border-zinc-400 hover:text-zinc-200"
+                            )}
+                        >
+                            GIF
                         </button>
-                        <button type="button" className="hidden sm:block hover:text-zinc-200 transition">
+
+                        {/* Sticker */}
+                        <button
+                            type="button"
+                            onClick={() => togglePanel("sticker")}
+                            title="Send a Sticker"
+                            className={cn("hidden sm:block hover:text-zinc-200 transition",
+                                openPanel === "sticker" && "text-red-400"
+                            )}
+                        >
                             <Sticker className="w-6 h-6" />
                         </button>
-                        <button type="button" className="hover:text-zinc-200 transition">
+
+                        {/* Emoji */}
+                        <button
+                            type="button"
+                            onClick={() => togglePanel("emoji")}
+                            title="Pick an emoji"
+                            className={cn("hover:text-zinc-200 transition",
+                                openPanel === "emoji" && "text-red-400"
+                            )}
+                        >
                             <Smile className="w-6 h-6" />
                         </button>
+
+                        {/* Send */}
                         <button
                             type="submit"
                             className={cn(
@@ -156,10 +570,7 @@ export default function ChatArea({ channelName }: { channelName: string }) {
                     </div>
                 </form>
 
-                {/* Branding / Fine print */}
-                <p className="text-[10px] text-zinc-500 px-1 pt-1 ml-12">
-                    Press Enter to send
-                </p>
+                <p className="text-[10px] text-zinc-500 px-1 pt-1 ml-12">Press Enter to send</p>
             </div>
         </div>
     );
