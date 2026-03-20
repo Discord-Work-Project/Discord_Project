@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Menu, X, Phone, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ interface Server {
     owner?: string;
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+const DashboardLayoutContent = ({ children }: { children: React.ReactNode }) => {
     const router = useRouter();
     const searchParams = useSearchParams();
     const pathname = usePathname();
