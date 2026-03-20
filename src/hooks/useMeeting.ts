@@ -22,6 +22,7 @@ interface MeetingRoom {
   maxParticipants: number;
   isActive: boolean;
   createdAt: string;
+  isPrivate: boolean;
   settings: {
     allowScreenShare: boolean;
     allowChat: boolean;

@@ -5,23 +5,21 @@ import { cn } from "@/lib/utils";
 
 type Direction = "TOP" | "LEFT" | "BOTTOM" | "RIGHT";
 
-export function HoverBorderGradient({
+export function HoverBorderGradient<T extends React.ElementType = "button">({
     children,
     containerClassName,
     className,
-    as: Tag = "button",
+    as: Tag = "button" as T,
     duration = 1,
     clockwise = true,
     ...props
-}: React.PropsWithChildren<
-    {
-        as?: React.ElementType;
-        containerClassName?: string;
-        className?: string;
-        duration?: number;
-        clockwise?: boolean;
-    } & React.HTMLAttributes<HTMLElement>
->) {
+}: {
+    as?: T;
+    containerClassName?: string;
+    className?: string;
+    duration?: number;
+    clockwise?: boolean;
+} & React.ComponentProps<T>) {
     const [hovered, setHovered] = useState<boolean>(false);
     const [direction, setDirection] = useState<Direction>("TOP");
 
@@ -70,7 +68,7 @@ export function HoverBorderGradient({
             <div
                 className={cn(
                     "w-auto text-white z-10 bg-black px-4 py-2 rounded-[inherit]",
-                    className
+                    className || ""
                 )}
             >
                 {children}
