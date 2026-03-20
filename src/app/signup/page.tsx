@@ -37,7 +37,12 @@ export default function SignupPage() {
       setLoading(false);
 
       if (!res.ok) {
-        setError(data.message);
+        // Handle database connection errors
+        if (data.message?.includes("Database connection not available")) {
+          setError("Server is experiencing database connectivity issues. Please try again in a few minutes.");
+        } else {
+          setError(data.message);
+        }
       } else {
         login(data);
         router.push("/dashboard");

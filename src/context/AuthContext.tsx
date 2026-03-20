@@ -72,12 +72,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 localStorage.setItem("user", JSON.stringify(updatedUser));
                 return true;
             } else {
-                console.error("Profile update failed:", data.message);
-                return false;
+                // Handle database connection errors
+                if (data.message?.includes("Database connection not available")) {
+                    console.error("Profile update failed: Database connection issue");
+                    throw new Error("Server is experiencing database connectivity issues. Please try again in a few minutes.");
+                } else {
+                    console.error("Profile update failed:", data.message);
+                    throw new Error(data.message || "Profile update failed");
+                }
             }
         } catch (error) {
             console.error("Profile update error:", error);
-            return false;
+            throw error;
         }
     };
 
@@ -94,15 +100,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const data = await res.json();
 
             if (res.ok) {
+                // Check if we're in fallback mode
+                if (data.fallback) {
+                    console.warn("Using fallback mode - database connection not available");
+                    // Show a warning to the user
+                    if (typeof window !== 'undefined') {
+                        console.log("⚠️ Running in offline mode - Some features may not work properly");
+                    }
+                }
                 login(data);
                 return true;
             } else {
-                console.error("Google login failed:", data.message);
-                return false;
+                // Provide more specific error messages for common issues
+                if (data.message?.includes("Database connection not available") || 
+                    data.message?.includes("Database connection timeout") ||
+                    data.message?.includes("Database server error")) {
+                    console.error("Google login failed: Database connection issue");
+                    throw new Error("Server is experiencing database connectivity issues. Please try again in a few minutes.");
+                } else {
+                    console.error("Google login failed:", data.message);
+                    throw new Error(data.message || "Google login failed");
+                }
             }
         } catch (error) {
             console.error("Google login error:", error);
-            return false;
+            throw error; // Re-throw to let the calling component handle the error
         }
     };
 

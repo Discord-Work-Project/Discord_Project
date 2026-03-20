@@ -40,16 +40,16 @@ export default function LoginPage() {
 
         if (success) {
           router.push("/dashboard");
-        } else {
-          setError("Failed to sync Google account with server");
         }
       }
     } catch (err: any) {
       console.error(err);
       if (err.code === "auth/popup-closed-by-user") {
         setError("Login popup was closed before completion");
+      } else if (err.message?.includes("Server is experiencing database connectivity issues")) {
+        setError("Server is temporarily unavailable. Please try again in a few minutes.");
       } else {
-        setError("Google login failed. Please try again.");
+        setError(err.message || "Google login failed. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -72,7 +72,12 @@ export default function LoginPage() {
       setLoading(false);
 
       if (!res.ok) {
-        setError(data.message);
+        // Handle database connection errors
+        if (data.message?.includes("Database connection not available")) {
+          setError("Server is experiencing database connectivity issues. Please try again in a few minutes.");
+        } else {
+          setError(data.message);
+        }
       } else {
         login(data);
         router.push("/dashboard");

@@ -10,6 +10,7 @@ import SettingsModal from "./SettingsModal";
 
 export default function VoiceArea({ channelName, roomId }: { channelName: string, roomId: string }) {
     const { user } = useAuth();
+    const router = useRouter();
     const searchParams = useSearchParams();
     const [isSettingsOpen, setIsSettingsOpen] = React.useState(false);
     const [copied, setCopied] = React.useState(false);
@@ -44,6 +45,47 @@ export default function VoiceArea({ channelName, roomId }: { channelName: string
         navigator.clipboard.writeText(inviteUrl);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
+    };
+
+    const handleDisconnect = async () => {
+        // Leave voice channel
+        leaveVoiceChannel();
+        
+        // Navigate back to a text channel
+        const serverId = searchParams.get("s");
+        if (serverId && user?.token) {
+            try {
+                // Fetch server data to find a text channel
+                const res = await fetch(`http://127.0.0.1:5000/api/servers/${serverId}`, {
+                    headers: {
+                        Authorization: `Bearer ${user.token}`,
+                    },
+                });
+                
+                if (res.ok) {
+                    const serverData = await res.json();
+                    const textChannel = serverData.channels.find((c: any) => c.type === "text");
+                    
+                    if (textChannel) {
+                        // Navigate to the first text channel
+                        router.push(`/dashboard?s=${serverId}&c=${textChannel._id}`);
+                    } else {
+                        // No text channel found, go to server root
+                        router.push(`/dashboard?s=${serverId}`);
+                    }
+                } else {
+                    // Fallback to server root
+                    router.push(`/dashboard?s=${serverId}`);
+                }
+            } catch (error) {
+                console.error("Failed to fetch server data:", error);
+                // Fallback to server root
+                router.push(`/dashboard?s=${serverId}`);
+            }
+        } else {
+            // Fallback to dashboard
+            router.push("/dashboard");
+        }
     };
 
     useEffect(() => {
@@ -214,7 +256,7 @@ export default function VoiceArea({ channelName, roomId }: { channelName: string
                     </button>
 
                     <button
-                        onClick={leaveVoiceChannel}
+                        onClick={handleDisconnect}
                         className="flex flex-col items-center gap-1 group"
                     >
                         <div className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center text-white hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20 active:scale-95">

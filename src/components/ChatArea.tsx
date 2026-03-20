@@ -25,6 +25,15 @@ interface Message {
     createdAt: string;
 }
 
+interface ChannelUser {
+    socketId: string;
+    userId: string;
+    username: string;
+    displayName?: string;
+    avatar?: string;
+    isTyping: boolean;
+}
+
 // ─── Emoji Data ───────────────────────────────────────────────────────────────
 const EMOJI_CATEGORIES: Record<string, string[]> = {
     "😊 Smileys": ["😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", "😉", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙", "🥲", "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🤫", "🤔", "🤐", "🤨", "😐", "😑", "😶", "😏", "😒", "🙄", "😬", "🤥", "😌", "😔", "😪", "🤤", "😴", "😷", "🤒", "🤕"],
@@ -74,9 +83,13 @@ export default function ChatArea({
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [loading, setLoading] = useState(true);
+    const [typingUsers, setTypingUsers] = useState<ChannelUser[]>([]);
+    const [channelUsers, setChannelUsers] = useState<ChannelUser[]>([]);
+    const [joinNotifications, setJoinNotifications] = useState<string[]>([]);
     const socketRef = useRef<Socket | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // ── Panel state: "emoji" | "gif" | "sticker" | null
     const [openPanel, setOpenPanel] = useState<"emoji" | "gif" | "sticker" | null>(null);
@@ -146,11 +159,40 @@ export default function ChatArea({
 
         fetchHistory();
         socketRef.current = io("http://127.0.0.1:5000");
-        socketRef.current.emit("join-channel", channelId);
+        
+        // Join channel with user info
+        socketRef.current.emit("join-channel", { channelId, user });
+        
+        // Message events
         socketRef.current.on("new-message", (msg: Message) => setMessages(prev => [...prev, msg]));
         socketRef.current.on("message-deleted", (deletedId: string) =>
             setMessages(prev => prev.filter(m => m._id !== deletedId))
         );
+
+        // User presence events
+        socketRef.current.on("channel-users-updated", (users: ChannelUser[]) => {
+            setChannelUsers(users);
+        });
+
+        socketRef.current.on("typing-users-updated", (users: ChannelUser[]) => {
+            setTypingUsers(users.filter(u => u.userId !== user?._id));
+        });
+
+        socketRef.current.on("user-joined-channel", ({ user: joinedUser }: { user: Author }) => {
+            const notification = `${joinedUser.displayName || joinedUser.username} joined the channel`;
+            setJoinNotifications(prev => [...prev, notification]);
+            setTimeout(() => {
+                setJoinNotifications(prev => prev.filter(n => n !== notification));
+            }, 3000);
+        });
+
+        socketRef.current.on("user-left-channel", ({ user: leftUser }: { user: Author }) => {
+            const notification = `${leftUser.displayName || leftUser.username} left the channel`;
+            setJoinNotifications(prev => [...prev, notification]);
+            setTimeout(() => {
+                setJoinNotifications(prev => prev.filter(n => n !== notification));
+            }, 3000);
+        });
 
         return () => { socketRef.current?.disconnect(); };
     }, [channelId, user?.token]);
@@ -175,6 +217,33 @@ export default function ChatArea({
             }
         } catch (err) { console.error("Failed to send message:", err); }
     }, [user, serverId, channelId]);
+
+    // Typing indicators
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        setInputValue(value);
+        
+        if (value.trim() && socketRef.current) {
+            // Start typing indicator
+            socketRef.current.emit("start-typing", { channelId, user });
+            
+            // Clear existing timeout
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+            
+            // Stop typing after 3 seconds of inactivity
+            typingTimeoutRef.current = setTimeout(() => {
+                socketRef.current?.emit("stop-typing", { channelId, user });
+            }, 3000);
+        } else if (!value.trim() && socketRef.current) {
+            // Stop typing if input is cleared
+            socketRef.current?.emit("stop-typing", { channelId, user });
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        }
+    };
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -251,7 +320,13 @@ export default function ChatArea({
                     <div className="w-16 h-16 bg-[#41434a] rounded-full flex items-center justify-center mb-4 text-[#dbdee1]">
                         <Hash className="w-10 h-10" />
                     </div>
-                    <h1 className="text-3xl font-bold text-white mb-1">Welcome to #{channelName}!</h1>
+                    <div className="flex items-center gap-4 mb-2">
+                        <h1 className="text-3xl font-bold text-white">Welcome to #{channelName}!</h1>
+                        <div className="flex items-center gap-1 text-xs text-zinc-400">
+                            <div className="w-2 h-2 bg-green-500 rounded-full" />
+                            <span>{channelUsers.length} online</span>
+                        </div>
+                    </div>
                     <p className="text-zinc-400">This is the start of the #{channelName} channel.</p>
                 </div>
 
@@ -262,102 +337,146 @@ export default function ChatArea({
                         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600" />
                     </div>
                 ) : (
-                    messages.map((msg) => {
-                        const isOwn = user?._id === msg.author?._id;
-                        return (
-                            <div key={msg._id} className="flex gap-4 group hover:bg-[#2e3035] -mx-4 px-4 py-1 rounded transition-colors relative">
-                                {/* Avatar */}
-                                <div className="shrink-0 mt-0.5">
-                                    {msg.author?.avatar ? (
-                                        <img
-                                            src={msg.author.avatar}
-                                            alt={getAuthorName(msg.author)}
-                                            className="w-10 h-10 rounded-full object-cover shadow-sm ring-2 ring-zinc-700"
-                                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                                        />
-                                    ) : (
-                                        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-red-600 text-white font-bold text-sm shadow-sm ring-2 ring-zinc-700">
-                                            {getInitials(getAuthorName(msg.author))}
-                                        </div>
-                                    )}
-                                </div>
-                                {/* Content */}
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="font-bold text-white hover:underline cursor-pointer text-sm">
-                                            {getAuthorName(msg.author)}
-                                        </span>
-                                        {msg.author?.username && msg.author.displayName && (
-                                            <span className="text-[11px] text-zinc-500">@{msg.author.username}</span>
+                    <>
+                        {/* Join/Leave Notifications */}
+                        <AnimatePresence>
+                            {joinNotifications.map((notification, index) => (
+                                <motion.div
+                                    key={`${notification}-${index}`}
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    className="text-center py-2 text-xs text-zinc-400 italic"
+                                >
+                                    {notification}
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+
+                        {/* Typing Indicators */}
+                        <AnimatePresence>
+                            {typingUsers.length > 0 && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: 10 }}
+                                    className="flex items-center gap-2 px-4 py-2 text-zinc-400 text-sm"
+                                >
+                                    <div className="flex gap-1">
+                                        <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                        <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                        <div className="w-2 h-2 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    </div>
+                                    <span className="text-xs">
+                                        {typingUsers.length === 1 
+                                            ? `${typingUsers[0].displayName || typingUsers[0].username} is typing...`
+                                            : typingUsers.length === 2
+                                            ? `${typingUsers[0].displayName || typingUsers[0].username} and ${typingUsers[1].displayName || typingUsers[1].username} are typing...`
+                                            : `${typingUsers.length} people are typing...`
+                                        }
+                                    </span>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* Messages */}
+                        {messages.map((msg) => {
+                            const isOwn = user?._id === msg.author?._id;
+                            return (
+                                <div key={msg._id} className="flex gap-4 group hover:bg-[#2e3035] -mx-4 px-4 py-1 rounded transition-colors relative">
+                                    {/* Avatar */}
+                                    <div className="shrink-0 mt-0.5">
+                                        {msg.author?.avatar ? (
+                                            <img
+                                                src={msg.author.avatar}
+                                                alt={getAuthorName(msg.author)}
+                                                className="w-10 h-10 rounded-full object-cover shadow-sm ring-2 ring-zinc-700"
+                                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                            />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-full flex items-center justify-center bg-red-600 text-white font-bold text-sm shadow-sm ring-2 ring-zinc-700">
+                                                {getInitials(getAuthorName(msg.author))}
+                                            </div>
                                         )}
-                                        <span className="text-[11px] text-zinc-400">
-                                            {formatTimestamp(msg.createdAt)}
-                                        </span>
                                     </div>
-                                    {isImageContent(msg.content) ? (
-                                        <img
-                                            src={msg.content}
-                                            alt="shared content"
-                                            className="mt-1 max-w-[320px] max-h-60 rounded-lg object-cover border border-zinc-600"
-                                        />
-                                    ) : (
-                                        <p className="text-[#dbdee1] text-sm leading-relaxed break-words mt-0.5">
-                                            {msg.content}
-                                        </p>
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-baseline gap-2">
+                                            <span className="font-bold text-white hover:underline cursor-pointer text-sm">
+                                                {getAuthorName(msg.author)}
+                                            </span>
+                                            {msg.author?.username && msg.author.displayName && (
+                                                <span className="text-[11px] text-zinc-500">@{msg.author.username}</span>
+                                            )}
+                                            <span className="text-[11px] text-zinc-400">
+                                                {formatTimestamp(msg.createdAt)}
+                                            </span>
+                                        </div>
+                                        {isImageContent(msg.content) ? (
+                                            <img
+                                                src={msg.content}
+                                                alt="shared content"
+                                                className="mt-1 max-w-[320px] max-h-60 rounded-lg object-cover border border-zinc-600"
+                                            />
+                                        ) : (
+                                            <p className="text-[#dbdee1] text-sm leading-relaxed break-words mt-0.5">
+                                                {msg.content}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {/* Hover Actions — only for own messages */}
+                                    {isOwn && (
+                                        <div className="absolute right-4 top-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => setDeleteConfirmId(msg._id)}
+                                                title="Delete message"
+                                                className="p-1.5 rounded bg-[#1e1f22] hover:bg-red-600 text-zinc-400 hover:text-white transition-all shadow"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
                                     )}
-                                </div>
 
-                                {/* Hover Actions — only for own messages */}
-                                {isOwn && (
-                                    <div className="absolute right-4 top-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={() => setDeleteConfirmId(msg._id)}
-                                            title="Delete message"
-                                            className="p-1.5 rounded bg-[#1e1f22] hover:bg-red-600 text-zinc-400 hover:text-white transition-all shadow"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                )}
-
-                                {/* Delete Confirm Modal */}
-                                {deleteConfirmId === msg._id && (
-                                    <div
-                                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-                                        onClick={() => setDeleteConfirmId(null)}
-                                    >
+                                    {/* Delete Confirm Modal */}
+                                    {deleteConfirmId === msg._id && (
                                         <div
-                                            className="bg-[#313338] border border-zinc-700 rounded-xl p-6 w-full max-w-sm shadow-2xl"
-                                            onClick={e => e.stopPropagation()}
+                                            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+                                            onClick={() => setDeleteConfirmId(null)}
                                         >
-                                            <h3 className="text-white font-bold text-lg mb-1">Delete Message</h3>
-                                            <p className="text-zinc-400 text-sm mb-1">Are you sure you want to delete this message? This cannot be undone.</p>
-                                            <div className="bg-[#2b2d31] rounded-lg p-3 mb-4 text-zinc-300 text-sm break-words">
-                                                {isImageContent(msg.content)
-                                                    ? <span className="italic text-zinc-500">[Image / GIF]</span>
-                                                    : msg.content
-                                                }
-                                            </div>
-                                            <div className="flex gap-3 justify-end">
-                                                <button
-                                                    onClick={() => setDeleteConfirmId(null)}
-                                                    className="px-4 py-1.5 rounded-md text-sm text-zinc-300 hover:text-white hover:bg-zinc-700 transition"
-                                                >
-                                                    Cancel
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteMessage(msg._id, msg.channelId)}
-                                                    className="px-4 py-1.5 rounded-md text-sm bg-red-600 hover:bg-red-700 text-white font-semibold transition"
-                                                >
-                                                    Delete
-                                                </button>
+                                            <div
+                                                className="bg-[#313338] border border-zinc-700 rounded-xl p-6 w-full max-w-sm shadow-2xl"
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                <h3 className="text-white font-bold text-lg mb-1">Delete Message</h3>
+                                                <p className="text-zinc-400 text-sm mb-1">Are you sure you want to delete this message? This cannot be undone.</p>
+                                                <div className="bg-[#2b2d31] rounded-lg p-3 mb-4 text-zinc-300 text-sm break-words">
+                                                    {isImageContent(msg.content)
+                                                        ? <span className="italic text-zinc-500">[Image / GIF]</span>
+                                                        : msg.content
+                                                    }
+                                                </div>
+                                                <div className="flex gap-3 justify-end">
+                                                    <button
+                                                        onClick={() => setDeleteConfirmId(null)}
+                                                        className="px-4 py-1.5 rounded-md text-sm text-zinc-300 hover:text-white hover:bg-zinc-700 transition"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteMessage(msg._id, msg.channelId)}
+                                                        className="px-4 py-1.5 rounded-md text-sm bg-red-600 hover:bg-red-700 text-white font-semibold transition"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </>
                 )}
             </div>
 
@@ -513,7 +632,7 @@ export default function ChatArea({
                     <input
                         type="text"
                         value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
+                        onChange={handleInputChange}
                         placeholder={`Message #${channelName}`}
                         className="bg-transparent flex-1 text-zinc-200 outline-none placeholder:text-zinc-500 text-sm md:text-base border-none focus:ring-0 w-full"
                     />

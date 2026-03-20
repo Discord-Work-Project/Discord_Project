@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Plus, Compass, Video } from "lucide-react";
+import { Plus, Video } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -73,13 +73,6 @@ export default function ServerSidebar({ servers, activeServerId, onServerSelect,
             >
                 <Video className="w-6 h-6 text-blue-500 group-hover:text-white" />
             </button>
-
-            <Link
-                href="/community"
-                className="w-12 h-12 bg-zinc-800 rounded-[24px] hover:rounded-[16px] flex items-center justify-center cursor-pointer hover:bg-green-500 hover:text-white transition-all duration-300 group shrink-0"
-            >
-                <Compass className="w-6 h-6 text-green-500 group-hover:text-white" />
-            </Link>
         </div>
     );
 }

@@ -1,8 +1,12 @@
+"use client";
+
 import Link from "next/link";
 import WorldGlobe from "@/components/ui/WorldGlobe";
 import Footer from "@/components/Footer";
+import { useActiveUsers } from "@/hooks/useActiveUsers";
 
 export default function Home() {
+  const { activeUsers } = useActiveUsers();
   return (
     <div className="relative w-full overflow-hidden bg-black text-white">
 
@@ -67,7 +71,7 @@ export default function Home() {
             </div>
 
             <p className="text-gray-500 text-sm tracking-wide">
-              Join <span className="text-white font-medium">2,500+</span> active users online
+              Join <span className="text-white font-medium">{activeUsers.toLocaleString()}</span> active users online
             </p>
           </div>
 
@@ -89,7 +93,7 @@ export default function Home() {
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
               </span>
               <span className="text-sm font-semibold tracking-wide">
-                2,500+ Connected
+                {activeUsers.toLocaleString()} Connected
               </span>
             </div>
           </div>

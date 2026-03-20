@@ -34,13 +34,13 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/community" className="hover:text-red-500 transition">
-                  community
+                <Link href="/about" className="hover:text-red-500 transition">
+                  About
                 </Link>
               </li>
               <li>
-                <Link href="/webhub" className="hover:text-red-500 transition">
-                  Webhub
+                <Link href="/chatbot" className="hover:text-red-500 transition">
+                  Chatbot
                 </Link>
               </li>
               <li>
@@ -53,9 +53,28 @@ export default function Footer() {
 
           {/* COMPANY */}
           <div>
-            <h3 className="text-white font-bold mb-4">Services</h3> 
-            <ul className="space-y-3 text-gray-400 text-sm"> 
-
+            <h3 className="text-white font-bold mb-4">Services</h3>
+            <ul className="space-y-3 text-gray-400 text-sm">
+              <li>
+                <Link href="" className="hover:text-red-500 transition">
+                  Real-time chat
+                </Link>
+              </li>
+              <li>
+                <Link href="" className="hover:text-red-500 transition">
+                  Real-time Voice & Audio
+                </Link>
+              </li>
+              <li>
+                <Link href="" className="hover:text-red-500 transition">
+                  Real-time video chat
+                </Link>
+              </li>
+              <li>
+                <Link href="" className="hover:text-red-500 transition">
+                  Real World chat-bot
+                </Link>
+              </li>
             </ul>
           </div>
 

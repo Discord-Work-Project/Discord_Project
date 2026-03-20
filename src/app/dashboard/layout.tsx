@@ -2,18 +2,20 @@
 
 import React, { useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Phone, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ServerSidebar from "@/components/ServerSidebar";
 import ChannelSidebar from "@/components/ChannelSidebar";
 import ChatArea from "@/components/ChatArea";
 import VoiceArea from "@/components/VoiceArea";
+import VoiceVideoChat from "@/components/VoiceVideoChat";
 import CreateServerModal from "@/components/CreateServerModal";
 import CreateChannelModal from "@/components/CreateChannelModal";
 import UserSettingsModal from "@/components/UserSettingsModal";
 import StreamMeetingModal from "@/components/StreamMeetingModal";
 import MeetingArea from "@/components/MeetingArea";
 import StreamingArea from "@/components/StreamingArea";
+import LoginPopup from "@/components/LoginPopup";
 import { useAuth } from "@/context/AuthContext";
 
 type ViewMode = "normal" | "streaming" | "meeting";
@@ -47,8 +49,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
     const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
     const [isStreamMeetingOpen, setIsStreamMeetingOpen] = useState(false);
+    const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false);
     const [viewMode, setViewMode] = useState<ViewMode>("normal");
     const [loading, setLoading] = useState(true);
+    const [showLoginPopup, setShowLoginPopup] = useState(false);
+
+    // Check authentication on mount
+    useEffect(() => {
+        if (!user) {
+            setShowLoginPopup(true);
+        } else {
+            setShowLoginPopup(false);
+        }
+    }, [user]);
 
     // Fetch servers on mount
     useEffect(() => {
@@ -192,6 +205,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     return (
         <div className="flex h-[calc(100vh-65px)] w-full overflow-hidden bg-[#313338]">
+            {/* Login Popup */}
+            <LoginPopup 
+                isOpen={showLoginPopup}
+                onClose={() => setShowLoginPopup(false)}
+            />
+
             {/* Modals */}
             <CreateServerModal
                 isOpen={isCreateModalOpen}
@@ -269,13 +288,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col h-full overflow-hidden">
-                {viewMode === "meeting" ? (
-                    <MeetingArea onEnd={() => setViewMode("normal")} />
-                ) : viewMode === "streaming" ? (
-                    <StreamingArea onEnd={() => setViewMode("normal")} />
-                ) : activeServer && activeChannel ? (
-                    <>
-                        {activeChannel.type === "text" ? (
+                {user ? (
+                    viewMode === "meeting" ? (
+                        <MeetingArea onEnd={() => setViewMode("normal")} />
+                    ) : viewMode === "streaming" ? (
+                        <StreamingArea onEnd={() => setViewMode("normal")} />
+                    ) : activeServer && activeChannel ? (
+                        activeChannel.type === "text" ? (
                             <>
                                 {/* Content Header (Text Only) */}
                                 <div className="h-12 border-b border-black flex items-center justify-between px-4 shadow-sm shrink-0 bg-[#313338] z-10">
@@ -295,7 +314,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                             className="hover:text-zinc-200 transition flex items-center gap-2"
                                         >
                                             <span className="text-xs font-bold hidden sm:block">Invite</span>
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-user-plus"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="22" x2="16" y1="11" y2="11" /></svg>
+                                            <UserPlus size={20} />
+                                        </button>
+                                        <button
+                                            onClick={() => setIsVoiceChatOpen(true)}
+                                            className="hover:text-zinc-200 transition flex items-center gap-2 bg-green-600 hover:bg-green-700 px-3 py-1 rounded"
+                                        >
+                                            <Phone className="w-4 h-4" />
+                                            <span className="text-xs font-bold hidden sm:block">Join Voice</span>
                                         </button>
                                     </div>
                                 </div>
@@ -312,20 +338,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         ) : (
                             /* Voice Area */
                             <VoiceArea channelName={activeChannel.name} roomId={activeChannel.id} />
-                        )}
-                    </>
+                        )
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 p-8 text-center">
+                            <div className="w-24 h-24 bg-zinc-800 rounded-full flex items-center justify-center mb-6">
+                                <Menu className="w-12 h-12 text-zinc-600" />
+                            </div>
+                            <h2 className="text-2xl font-bold text-white mb-2">Welcome to Network</h2>
+                            <p className="max-w-md">
+                                Create or join a server using the sidebar to start your journey in the multiverse.
+                            </p>
+                        </div>
+                    )
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 p-8 text-center">
                         <div className="w-24 h-24 bg-zinc-800 rounded-full flex items-center justify-center mb-6">
                             <Menu className="w-12 h-12 text-zinc-600" />
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Welcome to the Network</h2>
-                        <p className="max-w-md">
-                            Create or join a server using the sidebar to start your journey in the multiverse.
+                        <h2 className="text-2xl font-bold text-white mb-2">Authentication Required</h2>
+                        <p className="max-w-md mb-6">
+                            Please log in to access the dashboard and connect with your community.
                         </p>
+                        <button
+                            onClick={() => setShowLoginPopup(true)}
+                            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
+                        >
+                            Sign In
+                        </button>
                     </div>
                 )}
             </main>
+
+            {/* Voice/Video Chat Modal */}
+            {activeServer && activeChannel && (
+                <VoiceVideoChat
+                    serverId={activeServerId as string}
+                    channelId={activeChannel.id}
+                    isOpen={isVoiceChatOpen}
+                    onClose={() => setIsVoiceChatOpen(false)}
+                />
+            )}
         </div>
     );
 }

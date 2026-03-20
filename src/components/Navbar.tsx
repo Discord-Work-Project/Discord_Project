@@ -61,8 +61,8 @@ export default function Navbar() {
                     <div className="hidden md:flex items-center gap-10 absolute left-1/2 transform -translate-x-1/2">
                         <NavLink href="/">Home</NavLink>
                         <NavLink href="/dashboard">Dashboard</NavLink>
-                        <NavLink href="/community">Community</NavLink>
-                        <NavLink href="/webhub">Web Hub</NavLink>
+                        <NavLink href="/about">About</NavLink>
+                        <NavLink href="/chatbot">Chatbot</NavLink>
                         <NavLink href="/streaming-meetings">Streaming/Meetings</NavLink>
                     </div>
 
