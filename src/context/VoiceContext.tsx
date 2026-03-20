@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from "r
 import io, { Socket } from "socket.io-client";
 import Peer from "simple-peer";
 import { useAuth } from "./AuthContext";
+import api from "@/lib/api";
 
 interface VoiceParticipant {
     socketId: string;
@@ -64,7 +65,7 @@ export const VoiceProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
         getDevices();
 
-        socketRef.current = io("http://127.0.0.1:5000");
+        socketRef.current = io(api.base);
 
         socketRef.current.on("voice-state-update", (state: any) => {
             setGlobalVoiceState(state);

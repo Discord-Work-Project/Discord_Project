@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { io, Socket } from "socket.io-client";
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
+import { io, Socket } from 'socket.io-client';
+import api from '@/lib/api';
 
 interface ActiveUsersData {
   activeUsers: number;
@@ -17,7 +19,7 @@ export function useActiveUsers() {
     // Fetch initial count
     const fetchActiveUsers = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:5000/api/users/active");
+        const response = await fetch(`${api.base}/api/users/active`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -36,7 +38,7 @@ export function useActiveUsers() {
     fetchActiveUsers();
 
     // Set up socket connection for real-time updates
-    const newSocket = io("http://127.0.0.1:5000", {
+    const newSocket = io(api.base, {
       transports: ['websocket', 'polling'],
       timeout: 5000,
       reconnection: true,
