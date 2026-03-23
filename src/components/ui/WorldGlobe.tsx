@@ -30,7 +30,7 @@ function GlobeComponent() {
                         lng: position.coords.longitude
                     });
                 },
-                (error) => console.error("Geolocation error:", error),
+                () => { /* Geolocation denied or unavailable — globe renders without user pin */ },
                 { enableHighAccuracy: true }
             );
         }

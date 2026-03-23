@@ -381,3 +381,15 @@ const DashboardLayoutContent = ({ children }: { children: React.ReactNode }) => 
         </div>
     );
 }
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+    return (
+        <Suspense fallback={
+            <div className="flex h-[calc(100vh-65px)] w-full items-center justify-center bg-[#313338]">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
+            </div>
+        }>
+            <DashboardLayoutContent>{children}</DashboardLayoutContent>
+        </Suspense>
+    );
+}

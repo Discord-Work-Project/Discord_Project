@@ -27,6 +27,7 @@ export default function RootLayout({
     <html lang="en">
       <body
         className={`${inter.className} ${bangers.variable} web-pattern min-h-screen`}
+        suppressHydrationWarning
       >
         <AuthProvider>
           <VoiceProvider>

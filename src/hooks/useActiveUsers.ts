@@ -20,18 +20,25 @@ export function useActiveUsers() {
     const fetchActiveUsers = async () => {
       try {
         const response = await fetch(`${api.base}/api/users/active`);
-        
+
+        // 404 means the route doesn't exist yet — silently use the default
+        if (response.status === 404) return;
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const data: ActiveUsersData = await response.json();
         setActiveUsers(data.activeUsers);
         setError(null);
       } catch (error) {
+        // Only log unexpected errors, not missing routes
+        if (error instanceof TypeError) {
+          // Network error (server down) — expected in dev, stay silent
+          return;
+        }
         console.error("Failed to fetch active users:", error);
         setError("Failed to connect to server");
-        // Keep the default value (2500) when fetch fails
       }
     };
 
