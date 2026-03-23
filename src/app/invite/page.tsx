@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2, ShieldCheck, AlertCircle } from "lucide-react";
 
-export default function InvitePage() {
+function InvitePageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useAuth();
@@ -33,7 +33,6 @@ export default function InvitePage() {
                 });
 
                 if (res.ok) {
-                    const data = await res.json();
                     setStatus("success");
                     // Redirect to dashboard with the joined server selected
                     setTimeout(() => {
@@ -106,5 +105,17 @@ export default function InvitePage() {
                 Antigravity • Multiverse Network
             </p>
         </div>
+    );
+}
+
+export default function InvitePage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen bg-[#313338] flex items-center justify-center">
+                <Loader2 className="w-16 h-16 text-red-600 animate-spin" />
+            </div>
+        }>
+            <InvitePageContent />
+        </Suspense>
     );
 }
