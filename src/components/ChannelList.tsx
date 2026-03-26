@@ -24,7 +24,7 @@ export default function ChannelList({ serverId }: { serverId: string }) {
         const fetchServerDetails = async () => {
             if (!user?.token || !serverId) return;
             try {
-                const res = await fetch(`http://127.0.0.1:5000/api/servers/${serverId}`, {
+                const res = await fetch(`https://opentl-backend.onrender.com/api/servers/${serverId}`, {
                     headers: {
                         Authorization: `Bearer ${user.token}`,
                     },

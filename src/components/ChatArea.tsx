@@ -149,7 +149,7 @@ export default function ChatArea({
         const fetchHistory = async () => {
             setLoading(true);
             try {
-                const res = await fetch(`http://127.0.0.1:5000/api/messages/${channelId}`, {
+                const res = await fetch(`https://opentl-backend.onrender.com/api/messages/${channelId}`, {
                     headers: { Authorization: `Bearer ${user.token}` },
                 });
                 if (res.ok) setMessages(await res.json());
@@ -158,7 +158,7 @@ export default function ChatArea({
         };
 
         fetchHistory();
-        socketRef.current = io("http://127.0.0.1:5000");
+        socketRef.current = io("https://opentl-backend.onrender.com");
         
         // Join channel with user info
         socketRef.current.emit("join-channel", { channelId, user });
@@ -206,7 +206,7 @@ export default function ChatArea({
     const sendContent = useCallback(async (content: string) => {
         if (!content.trim() || !user?.token) return;
         try {
-            const res = await fetch("http://127.0.0.1:5000/api/messages", {
+            const res = await fetch("https://opentl-backend.onrender.com/api/messages", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
                 body: JSON.stringify({ content, serverId, channelId }),
@@ -269,7 +269,7 @@ export default function ChatArea({
     const handleDeleteMessage = async (messageId: string, channelId: string) => {
         setDeleteConfirmId(null);
         try {
-            const res = await fetch(`http://127.0.0.1:5000/api/messages/${messageId}`, {
+            const res = await fetch(`https://opentl-backend.onrender.com/api/messages/${messageId}`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${user!.token}` },
             });
