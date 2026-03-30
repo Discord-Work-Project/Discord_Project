@@ -41,7 +41,7 @@ const DashboardLayoutContent = ({ children }: { children: React.ReactNode }) => 
     const router = useRouter();
     const searchParams = useSearchParams();
     const pathname = usePathname();
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
 
     const [servers, setServers] = useState<Server[]>([]);
     const [mobileOpen, setMobileOpen] = useState(false);
@@ -54,19 +54,15 @@ const DashboardLayoutContent = ({ children }: { children: React.ReactNode }) => 
     const [loading, setLoading] = useState(true);
     const [showLoginPopup, setShowLoginPopup] = useState(false);
 
-    // Check authentication on mount
-    useEffect(() => {
-        if (!user) {
-            setShowLoginPopup(true);
-        } else {
-            setShowLoginPopup(false);
-        }
-    }, [user]);
+    // Removed auto-redirect. Now we render a "Recommended to sign in" view instead.
 
     // Fetch servers on mount
     useEffect(() => {
         const fetchServers = async () => {
-            if (!user?.token) return;
+            if (!user?.token) {
+                setLoading(false);
+                return;
+            }
 
             try {
                 const res = await fetch("https://opentl-backend.onrender.com/api/servers", {
@@ -195,10 +191,38 @@ const DashboardLayoutContent = ({ children }: { children: React.ReactNode }) => 
         setServers(prev => prev.map(s => s.id === updatedServer.id ? { ...s, ...updatedServer } : s));
     };
 
-    if (loading) {
+    if (authLoading || loading) {
         return (
             <div className="flex h-[calc(100vh-65px)] w-full items-center justify-center bg-[#313338]">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <div className="flex flex-col h-[calc(100vh-65px)] w-full items-center justify-center bg-[#313338] text-center p-8">
+                <div className="w-24 h-24 bg-zinc-800 rounded-full flex items-center justify-center mb-6">
+                    <UserPlus className="w-12 h-12 text-zinc-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-2">Authentication Required</h2>
+                <p className="max-w-md mb-6 text-zinc-400">
+                    The dashboard is restricted to members. Please sign in to access your servers and continue the conversation.
+                </p>
+                <div className="flex gap-4">
+                    <button
+                        onClick={() => router.push("/signin")}
+                        className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors shadow-lg"
+                    >
+                        Sign In
+                    </button>
+                    <button
+                        onClick={() => router.push("/")}
+                        className="px-6 py-3 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg font-medium transition-colors"
+                    >
+                        Go Home
+                    </button>
+                </div>
             </div>
         );
     }
@@ -288,83 +312,65 @@ const DashboardLayoutContent = ({ children }: { children: React.ReactNode }) => 
 
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col h-full overflow-hidden">
-                {user ? (
-                    viewMode === "meeting" ? (
-                        <MeetingArea onEnd={() => setViewMode("normal")} />
-                    ) : viewMode === "streaming" ? (
-                        <StreamingArea onEnd={() => setViewMode("normal")} />
-                    ) : activeServer && activeChannel ? (
-                        activeChannel.type === "text" ? (
-                            <>
-                                {/* Content Header (Text Only) */}
-                                <div className="h-12 border-b border-black flex items-center justify-between px-4 shadow-sm shrink-0 bg-[#313338] z-10">
-                                    <div className="flex items-center gap-2 text-zinc-400">
-                                        <span className="text-2xl font-light opacity-50">#</span>
-                                        <span className="font-bold text-white">
-                                            {activeChannel.name}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-4 text-zinc-400">
-                                        <button
-                                            onClick={() => {
-                                                const inviteUrl = `${window.location.origin}/invite?s=${activeServerId}`;
-                                                navigator.clipboard.writeText(inviteUrl);
-                                                alert("Invite link copied to clipboard!");
-                                            }}
-                                            className="hover:text-zinc-200 transition flex items-center gap-2"
-                                        >
-                                            <span className="text-xs font-bold hidden sm:block">Invite</span>
-                                            <UserPlus size={20} />
-                                        </button>
-                                        <button
-                                            onClick={() => setIsVoiceChatOpen(true)}
-                                            className="hover:text-zinc-200 transition flex items-center gap-2 bg-green-600 hover:bg-green-700 px-3 py-1 rounded"
-                                        >
-                                            <Phone className="w-4 h-4" />
-                                            <span className="text-xs font-bold hidden sm:block">Join Voice</span>
-                                        </button>
-                                    </div>
+                {viewMode === "meeting" ? (
+                    <MeetingArea onEnd={() => setViewMode("normal")} />
+                ) : viewMode === "streaming" ? (
+                    <StreamingArea onEnd={() => setViewMode("normal")} />
+                ) : activeServer && activeChannel ? (
+                    activeChannel.type === "text" ? (
+                        <>
+                            {/* Content Header (Text Only) */}
+                            <div className="h-12 border-b border-black flex items-center justify-between px-4 shadow-sm shrink-0 bg-[#313338] z-10">
+                                <div className="flex items-center gap-2 text-zinc-400">
+                                    <span className="text-2xl font-light opacity-50">#</span>
+                                    <span className="font-bold text-white">
+                                        {activeChannel.name}
+                                    </span>
                                 </div>
-
-                                {/* Chat Area */}
-                                <div className="flex-1 overflow-hidden relative">
-                                    <ChatArea
-                                        serverId={activeServerId as string}
-                                        channelId={activeChannel.id}
-                                        channelName={activeChannel.name}
-                                    />
+                                <div className="flex items-center gap-4 text-zinc-400">
+                                    <button
+                                        onClick={() => {
+                                            const inviteUrl = `${window.location.origin}/invite?s=${activeServerId}`;
+                                            navigator.clipboard.writeText(inviteUrl);
+                                            alert("Invite link copied to clipboard!");
+                                        }}
+                                        className="hover:text-zinc-200 transition flex items-center gap-2"
+                                    >
+                                        <span className="text-xs font-bold hidden sm:block">Invite</span>
+                                        <UserPlus size={20} />
+                                    </button>
+                                    <button
+                                        onClick={() => setIsVoiceChatOpen(true)}
+                                        className="hover:text-zinc-200 transition flex items-center gap-2 bg-green-600 hover:bg-green-700 px-3 py-1 rounded"
+                                    >
+                                        <Phone className="w-4 h-4" />
+                                        <span className="text-xs font-bold hidden sm:block">Join Voice</span>
+                                    </button>
                                 </div>
-                            </>
-                        ) : (
-                            /* Voice Area */
-                            <VoiceArea channelName={activeChannel.name} roomId={activeChannel.id} />
-                        )
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 p-8 text-center">
-                            <div className="w-24 h-24 bg-zinc-800 rounded-full flex items-center justify-center mb-6">
-                                <Menu className="w-12 h-12 text-zinc-600" />
                             </div>
-                            <h2 className="text-2xl font-bold text-white mb-2">Welcome to Network</h2>
-                            <p className="max-w-md">
-                                Create or join a server using the sidebar to start your journey in the multiverse.
-                            </p>
-                        </div>
+
+                            {/* Chat Area */}
+                            <div className="flex-1 overflow-hidden relative">
+                                <ChatArea
+                                    serverId={activeServerId as string}
+                                    channelId={activeChannel.id}
+                                    channelName={activeChannel.name}
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        /* Voice Area */
+                        <VoiceArea channelName={activeChannel.name} roomId={activeChannel.id} />
                     )
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-zinc-400 p-8 text-center">
                         <div className="w-24 h-24 bg-zinc-800 rounded-full flex items-center justify-center mb-6">
                             <Menu className="w-12 h-12 text-zinc-600" />
                         </div>
-                        <h2 className="text-2xl font-bold text-white mb-2">Authentication Required</h2>
-                        <p className="max-w-md mb-6">
-                            Please log in to access the dashboard and connect with your community.
+                        <h2 className="text-2xl font-bold text-white mb-2">Welcome to Network</h2>
+                        <p className="max-w-md">
+                            Create or join a server using the sidebar to start your journey in the multiverse.
                         </p>
-                        <button
-                            onClick={() => setShowLoginPopup(true)}
-                            className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
-                        >
-                            Sign In
-                        </button>
                     </div>
                 )}
             </main>

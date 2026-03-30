@@ -1,40 +1,49 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { useEffect, useState } from "react";
+import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2, ShieldCheck, AlertCircle } from "lucide-react";
+import { api } from "@/lib/api";
 
-function InvitePageContent() {
+export default function InviteCodePage() {
     const router = useRouter();
-    const searchParams = useSearchParams();
+    const params = useParams();
     const { user, loading: authLoading } = useAuth();
     const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
     const [error, setError] = useState("");
 
-    const serverId = searchParams.get("s");
+    const code = params?.code as string;
 
     useEffect(() => {
         const joinServer = async () => {
-            if (!user?.token || !serverId) {
-                if (!serverId) {
-                    setStatus("error");
-                    setError("Invalid invite link.");
-                }
+            if (!code) {
+                setStatus("error");
+                setError("Invalid invite link.");
+                return;
+            }
+
+            if (!user?.token) {
+                // If not logged in, redirect to signin with return path
+                router.push(`/signin?callback=${encodeURIComponent(`/invite/${code}`)}`);
                 return;
             }
 
             try {
-                const res = await fetch(`https://opentl-backend.onrender.com/api/servers/${serverId}/join`, {
+                const res = await fetch(`${api.base}/api/invite/join/${code}`, {
                     method: "POST",
                     headers: {
+                        "Content-Type": "application/json",
                         Authorization: `Bearer ${user.token}`,
                     },
                 });
 
                 if (res.ok) {
+                    const data = await res.json();
                     setStatus("success");
                     // Redirect to dashboard with the joined server selected
+                    // The backend joinByInvite returns { message: "Joined successfully", server }
+                    const serverId = data.server?._id;
                     setTimeout(() => {
                         router.push(`/dashboard?s=${serverId}`);
                     }, 2000);
@@ -50,14 +59,9 @@ function InvitePageContent() {
         };
 
         if (authLoading) return;
+        joinServer();
 
-        if (user) {
-            joinServer();
-        } else {
-            // If not logged in, redirect to signin with return path
-            router.push(`/signin?callback=${encodeURIComponent(`/invite?s=${serverId}`)}`);
-        }
-    }, [user, authLoading, serverId, router]);
+    }, [user, authLoading, code, router]);
 
     return (
         <div className="min-h-screen bg-[#313338] flex flex-col items-center justify-center p-4">
@@ -65,7 +69,7 @@ function InvitePageContent() {
                 {status === "loading" && (
                     <>
                         <div className="flex justify-center">
-                            <Loader2 className="w-16 h-16 text-red-600 animate-spin" />
+                            <Loader2 className="w-16 h-16 text-indigo-500 animate-spin" />
                         </div>
                         <h1 className="text-2xl font-bold text-white">Accepting Invitation...</h1>
                         <p className="text-zinc-400">Verifying the multiverse portal, please wait.</p>
@@ -102,22 +106,9 @@ function InvitePageContent() {
                     </>
                 )}
             </div>
-
             <p className="mt-8 text-zinc-500 text-sm font-medium tracking-widest uppercase">
                 Antigravity • Multiverse Network
             </p>
         </div>
-    );
-}
-
-export default function InvitePage() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-screen bg-[#313338] flex items-center justify-center">
-                <Loader2 className="w-16 h-16 text-red-600 animate-spin" />
-            </div>
-        }>
-            <InvitePageContent />
-        </Suspense>
     );
 }

@@ -1,15 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { getFirebaseAuth, googleProvider } from "@/lib/firebase";
 import { signInWithPopup } from "firebase/auth";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login, googleAuth } = useAuth();
+
+  const callbackUrl = searchParams.get("callback") || "/dashboard";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,7 +42,7 @@ export default function LoginPage() {
         );
 
         if (success) {
-          router.push("/dashboard");
+          router.push(callbackUrl);
         }
       }
     } catch (err: any) {
@@ -80,7 +83,7 @@ export default function LoginPage() {
         }
       } else {
         login(data);
-        router.push("/dashboard");
+        router.push(callbackUrl);
       }
     } catch (err) {
       setLoading(false);
@@ -217,7 +220,7 @@ export default function LoginPage() {
         <p className="text-center text-xs text-gray-400 mt-6">
           Don’t have an account?{" "}
           <Link
-            href="/signup"
+            href={callbackUrl !== "/dashboard" ? `/signup?callback=${encodeURIComponent(callbackUrl)}` : "/signup"}
             className="text-red-500 hover:underline"
           >
             Signup
@@ -226,5 +229,13 @@ export default function LoginPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center bg-black"><span className="text-white text-sm">Loading...</span></div>}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

@@ -164,7 +164,13 @@ export default function ChatArea({
         socketRef.current.emit("join-channel", { channelId, user });
         
         // Message events
-        socketRef.current.on("new-message", (msg: Message) => setMessages(prev => [...prev, msg]));
+        socketRef.current.on("new-message", (msg: Message) => {
+            setMessages(prev => {
+                // Prevent duplicates (especially for the sender who might receive their own message back)
+                if (prev.some(m => m._id === msg._id)) return prev;
+                return [...prev, msg];
+            });
+        });
         socketRef.current.on("message-deleted", (deletedId: string) =>
             setMessages(prev => prev.filter(m => m._id !== deletedId))
         );
@@ -204,18 +210,54 @@ export default function ChatArea({
 
     // ── Send helpers ──────────────────────────────────────────────────────────
     const sendContent = useCallback(async (content: string) => {
-        if (!content.trim() || !user?.token) return;
+        if (!content.trim() || !user?.token || !user?._id) return;
+
+        // ✅ 1. Create optimistic message data
+        const tempId = `temp-${Date.now()}`;
+        const messageData: Message = {
+            _id: tempId,
+            content,
+            author: {
+                _id: user._id,
+                username: user.username,
+                displayName: user.displayName,
+                avatar: user.avatar,
+                email: user.email || "",
+            },
+            serverId,
+            channelId,
+            createdAt: new Date().toISOString(),
+        };
+
+        // ✅ 2. Update UI instantly
+        setMessages(prev => [...prev, messageData]);
+
         try {
+            // ✅ 3. Save to DB
             const res = await fetch("https://opentl-backend.onrender.com/api/messages", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
                 body: JSON.stringify({ content, serverId, channelId }),
             });
+            
             if (res.ok) {
-                const newMessage = await res.json();
-                socketRef.current?.emit("send-message", newMessage);
+                const savedMessage = await res.json();
+                
+                // ✅ 4. Replace temp message with real one from DB
+                setMessages(prev => prev.map(m => m._id === tempId ? savedMessage : m));
+                
+                // ✅ 5. Emit via socket to others
+                socketRef.current?.emit("send-message", savedMessage);
+            } else {
+                // If save failed, remove the optimistic message
+                setMessages(prev => prev.filter(m => m._id !== tempId));
+                console.error("Message save failed");
             }
-        } catch (err) { console.error("Failed to send message:", err); }
+        } catch (err) { 
+            console.error("Failed to send message:", err);
+            // Remove optimistic message on error
+            setMessages(prev => prev.filter(m => m._id !== tempId));
+        }
     }, [user, serverId, channelId]);
 
     // Typing indicators

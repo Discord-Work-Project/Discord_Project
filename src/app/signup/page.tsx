@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-export default function SignupPage() {
+function SignupPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
+  
+  const callbackUrl = searchParams.get("callback") || "/dashboard";
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -45,7 +48,7 @@ export default function SignupPage() {
         }
       } else {
         login(data);
-        router.push("/dashboard");
+        router.push(callbackUrl);
       }
     } catch (err) {
       setLoading(false);
@@ -172,7 +175,7 @@ export default function SignupPage() {
         <p className="text-center text-xs text-gray-400 mt-6">
           Already have an account?{" "}
           <span
-            onClick={() => router.push("/signin")}
+            onClick={() => router.push(callbackUrl !== "/dashboard" ? `/signin?callback=${encodeURIComponent(callbackUrl)}` : "/signin")}
             className="text-red-500 hover:underline cursor-pointer"
           >
             Login
@@ -181,5 +184,13 @@ export default function SignupPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-black"><span className="text-white text-sm">Loading...</span></div>}>
+      <SignupPageContent />
+    </Suspense>
   );
 }

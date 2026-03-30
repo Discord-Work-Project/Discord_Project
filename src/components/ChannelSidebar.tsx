@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Hash, Volume2, ChevronDown, Settings, Mic, Headphones, Edit3, LogOut } from "lucide-react";
+import { Hash, Volume2, ChevronDown, Settings, Mic, Headphones, Edit3, LogOut, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useVoice } from "@/context/VoiceContext";
+import { api } from "@/lib/api";
 import { AnimatePresence, motion } from "framer-motion";
 import EditServerModal from "./EditServerModal";
 
@@ -56,6 +57,28 @@ export default function ChannelSidebar({
         return () => document.removeEventListener("mousedown", handler);
     }, []);
 
+    const handleCreateInvite = async () => {
+        try {
+            if (!user?.token) return;
+            const res = await fetch(`${api.base}/api/invite/${server.id}`, {
+                method: "POST",
+                headers: api.authHeaders(user.token),
+            });
+            const data = await res.json();
+            if (res.ok && data.link) {
+                // Copy to clipboard
+                navigator.clipboard.writeText(data.link);
+                alert(`Invite link copied to clipboard!\n\n${data.link}`);
+            } else {
+                alert(data.message || "Failed to create invite");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error creating invite link");
+        }
+        setDropdownOpen(false);
+    };
+
     return (
         <div className="w-60 bg-zinc-900 flex flex-col h-full border-r border-black shrink-0">
             {/* ── Server Header with Dropdown ───────────────── */}
@@ -77,6 +100,14 @@ export default function ChannelSidebar({
                             transition={{ duration: 0.12 }}
                             className="absolute top-full left-2 right-2 z-50 bg-[#111214] border border-zinc-800 rounded-lg shadow-2xl p-1 mt-1"
                         >
+                            <button
+                                onClick={handleCreateInvite}
+                                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md text-sm text-indigo-400 hover:bg-indigo-500 hover:text-white transition group"
+                            >
+                                <UserPlus className="w-4 h-4 text-indigo-400 group-hover:text-white" />
+                                Invite People
+                            </button>
+                            <div className="h-px bg-zinc-800 my-1" />
                             {isOwner && (
                                 <button
                                     onClick={() => { setEditModalOpen(true); setDropdownOpen(false); }}
