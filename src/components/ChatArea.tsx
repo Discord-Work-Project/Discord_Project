@@ -158,7 +158,21 @@ export default function ChatArea({
         };
 
         fetchHistory();
-        socketRef.current = io("https://opentl-backend.onrender.com");
+
+        // ✅ Use env var — critical for Vercel production build
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || "https://opentl-backend.onrender.com";
+        socketRef.current = io(backendUrl, {
+            transports: ["websocket", "polling"], // try WebSocket first, fall back to polling
+            withCredentials: true,
+        });
+
+        // Debug: confirm socket connection in browser console
+        socketRef.current.on("connect", () => {
+            console.log("🔥 Socket connected:", socketRef.current?.id);
+        });
+        socketRef.current.on("connect_error", (err) => {
+            console.error("❌ Socket connect_error:", err.message);
+        });
         
         // Join channel with user info
         socketRef.current.emit("join-channel", { channelId, user });
@@ -267,7 +281,7 @@ export default function ChatArea({
         
         if (value.trim() && socketRef.current) {
             // Start typing indicator
-            socketRef.current.emit("start-typing", { channelId, user });
+            socketRef.current.emit("typing-start", { channelId, userId: user?._id });
             
             // Clear existing timeout
             if (typingTimeoutRef.current) {
@@ -276,11 +290,11 @@ export default function ChatArea({
             
             // Stop typing after 3 seconds of inactivity
             typingTimeoutRef.current = setTimeout(() => {
-                socketRef.current?.emit("stop-typing", { channelId, user });
+                socketRef.current?.emit("typing-stop", { channelId, userId: user?._id });
             }, 3000);
         } else if (!value.trim() && socketRef.current) {
             // Stop typing if input is cleared
-            socketRef.current?.emit("stop-typing", { channelId, user });
+            socketRef.current?.emit("typing-stop", { channelId, userId: user?._id });
             if (typingTimeoutRef.current) {
                 clearTimeout(typingTimeoutRef.current);
             }
