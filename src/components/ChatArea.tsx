@@ -162,7 +162,7 @@ export default function ChatArea({
         // ✅ Use env var — critical for Vercel production build
         const backendUrl = process.env.NEXT_PUBLIC_API_URL || "https://opentl-backend-1.onrender.com";
         socketRef.current = io(backendUrl, {
-            transports: ["websocket", "polling"], // try WebSocket first, fall back to polling
+            transports: ["websocket"], // 🔥 VERY IMPORTANT: force WebSocket to avoid Render polling issues
             withCredentials: true,
         });
 

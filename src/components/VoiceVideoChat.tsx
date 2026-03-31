@@ -481,7 +481,11 @@ export default function VoiceVideoChat({ serverId, channelId, isOpen, onClose }:
     useEffect(() => {
         if (!isOpen || !user) return;
 
-        socketRef.current = io("https://opentl-backend-1.onrender.com");
+        const backendUrl = process.env.NEXT_PUBLIC_API_URL || "https://opentl-backend-1.onrender.com";
+        socketRef.current = io(backendUrl, {
+            transports: ["websocket"],
+            withCredentials: true,
+        });
 
         socketRef.current.on("all-participants", async (users: VoiceUser[]) => {
             for (const newUser of users) {
