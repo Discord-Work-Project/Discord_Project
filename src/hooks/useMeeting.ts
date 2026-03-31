@@ -52,7 +52,7 @@ export function useMeeting() {
     setMeetingState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const response = await fetch('https://opentl-backend.onrender.com/api/meetings/create', {
+      const response = await fetch('https://opentl-backend-1.onrender.com/api/meetings/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomName, hostName, isPrivate })
@@ -83,7 +83,7 @@ export function useMeeting() {
     setMeetingState(prev => ({ ...prev, isLoading: true, error: null }));
     
     try {
-      const response = await fetch(`https://opentl-backend.onrender.com/api/meetings/${roomId}/join`, {
+      const response = await fetch(`https://opentl-backend-1.onrender.com/api/meetings/${roomId}/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userName, userAvatar })
@@ -116,7 +116,7 @@ export function useMeeting() {
 
   const loadParticipants = useCallback(async (roomId: string) => {
     try {
-      const response = await fetch(`https://opentl-backend.onrender.com/api/meetings/${roomId}/participants`);
+      const response = await fetch(`https://opentl-backend-1.onrender.com/api/meetings/${roomId}/participants`);
       const data = await response.json();
       if (data.success) {
         setMeetingState(prev => ({ ...prev, participants: data.participants }));
@@ -128,7 +128,7 @@ export function useMeeting() {
 
   const leaveRoom = useCallback(async (roomId: string, userId: string) => {
     try {
-      await fetch(`https://opentl-backend.onrender.com/api/meetings/${roomId}/leave`, {
+      await fetch(`https://opentl-backend-1.onrender.com/api/meetings/${roomId}/leave`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId })
@@ -152,7 +152,7 @@ export function useMeeting() {
     hasScreenShare?: boolean;
   }) => {
     try {
-      const response = await fetch(`https://opentl-backend.onrender.com/api/meetings/${roomId}/participants/${userId}/status`, {
+      const response = await fetch(`https://opentl-backend-1.onrender.com/api/meetings/${roomId}/participants/${userId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(status)
@@ -178,7 +178,7 @@ export function useMeeting() {
 
   const getActiveRooms = useCallback(async () => {
     try {
-      const response = await fetch('https://opentl-backend.onrender.com/api/meetings');
+      const response = await fetch('https://opentl-backend-1.onrender.com/api/meetings');
       const data = await response.json();
       return data.success ? data.rooms : [];
     } catch (error) {

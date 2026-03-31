@@ -25,7 +25,7 @@ function InvitePageContent() {
             }
 
             try {
-                const res = await fetch(`https://opentl-backend.onrender.com/api/servers/${serverId}/join`, {
+                const res = await fetch(`https://opentl-backend-1.onrender.com/api/servers/${serverId}/join`, {
                     method: "POST",
                     headers: {
                         Authorization: `Bearer ${user.token}`,

@@ -108,7 +108,7 @@ export default function EditServerModal({
 
         try {
             const res = await fetch(
-                `https://opentl-backend.onrender.com/api/servers/${server.id}`,
+                `https://opentl-backend-1.onrender.com/api/servers/${server.id}`,
                 {
                     method: "PUT",
                     headers: {
@@ -148,7 +148,7 @@ export default function EditServerModal({
 
         try {
             const res = await fetch(
-                `https://opentl-backend.onrender.com/api/servers/${server.id}/channels/${channelId}`,
+                `https://opentl-backend-1.onrender.com/api/servers/${server.id}/channels/${channelId}`,
                 {
                     method: "DELETE",
                     headers: { Authorization: `Bearer ${user!.token}` },

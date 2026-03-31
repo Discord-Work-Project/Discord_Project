@@ -27,7 +27,7 @@ export default function Sidebar() {
         const fetchServers = async () => {
             if (!user?.token) return;
             try {
-                const res = await fetch("https://opentl-backend.onrender.com/api/servers", {
+                const res = await fetch("https://opentl-backend-1.onrender.com/api/servers", {
                     headers: {
                         Authorization: `Bearer ${user.token}`,
                     },
